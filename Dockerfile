@@ -1,31 +1,13 @@
 # syntax=docker/dockerfile:1
 
-FROM node:18-alpine AS deps
+FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY planx/package.json planx/package-lock.json ./
 RUN npm ci
-
-FROM node:18-alpine AS builder
-WORKDIR /app
-ENV NEXT_TELEMETRY_DISABLED=1
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY planx/ .
 RUN npm run build
 
-FROM node:18-alpine AS prod-deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
-FROM node:18-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-
-EXPOSE 3000
-CMD ["npm", "start"]
+FROM nginx:1.27-alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
