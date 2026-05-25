@@ -1,8 +1,8 @@
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY planx/package.json planx/package-lock.json ./
 RUN npm ci
-COPY . .
+COPY planx/ .
 RUN npm run build
 
 FROM nginx:1.27-alpine
