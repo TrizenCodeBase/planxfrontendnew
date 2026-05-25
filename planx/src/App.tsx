@@ -3,6 +3,7 @@ import { AuthProvider } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage } from '@/pages/LoginPage'
+import { LandingPage } from '@/pages/LandingPage'
 import { UnauthorizedPage } from '@/pages/UnauthorizedPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { SystemAdminDashboard } from '@/pages/system-admin/Dashboard'
@@ -30,7 +31,8 @@ import { useAuth } from '@/hooks/useAuth'
 
 function RootRedirect() {
   const { user, homePath } = useAuth()
-  return <Navigate to={user ? homePath : '/login'} replace />
+  if (user) return <Navigate to={homePath} replace />
+  return <LandingPage />
 }
 
 export default function App() {

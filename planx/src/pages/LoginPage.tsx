@@ -46,10 +46,15 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-surface-muted)]">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-[var(--color-primary)]">PlanX</h1>
+          <a href="/" className="inline-block">
+            <h1 className="text-2xl font-bold text-[var(--color-primary)]">PlanX</h1>
+          </a>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
             Enterprise issue & project management
           </p>
+          <a href="/" className="text-xs text-[var(--color-primary)] hover:underline mt-2 inline-block">
+            ← Back to homepage
+          </a>
         </div>
 
         <Card>
