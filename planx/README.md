@@ -10,6 +10,25 @@ npm install
 npm run dev
 ```
 
+### Full stack (organizations + email)
+
+Run three services (separate repos under `lovable.worktrees`):
+
+```bash
+# 1. Mail service (port 4001) — Resend
+cd ../planx-mail-service && cp .env.example .env && npm install && npm run dev
+
+# 2. Backend (port 4000) — MongoDB
+cd ../planx-backend && cp .env.example .env && npm install && npm run seed && npm run dev
+
+# 3. Frontend (port 5173)
+cd planx && npm run dev
+```
+
+Configure `RESEND_API_KEY` and verify `support@trizenventures.com` in Resend. Set `MONGODB_URI` in the backend (MongoDB Atlas).
+
+System admin email copy: **support@trizehr.com**. Invites send from **support@trizenventures.com**.
+
 ## Demo Accounts
 
 | Role | Email | Password |

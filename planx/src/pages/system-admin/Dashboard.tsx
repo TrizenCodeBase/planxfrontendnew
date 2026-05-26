@@ -1,10 +1,15 @@
+import { useEffect } from 'react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatCard, Card } from '@/components/ui/Card'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { usePlanXStore } from '@/store/PlanXStore'
 
 export function SystemAdminDashboard() {
-  const { organizations, platformUsers } = usePlanXStore()
+  const { organizations, platformUsers, loadOrganizations } = usePlanXStore()
+
+  useEffect(() => {
+    void loadOrganizations()
+  }, [loadOrganizations])
 
   const activeOrgs = organizations.filter((o) => o.status === 'active').length
   const inactiveOrgs = organizations.filter((o) => o.status === 'suspended').length
