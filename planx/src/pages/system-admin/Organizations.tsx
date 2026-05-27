@@ -8,7 +8,10 @@ import { Modal, ModalActions } from '@/components/ui/Modal'
 import { Input, Select } from '@/components/ui/Input'
 import { ToastBanner } from '@/components/ui/Toast'
 import { usePlanXStore } from '@/store/PlanXStore'
+import { organizationApi } from '@/services/organizationApi'
 import type { Organization } from '@/types'
+
+const USE_ORG_API = import.meta.env.VITE_USE_ORG_API !== 'false'
 
 export function SystemAdminOrganizations() {
   const {
@@ -21,18 +24,62 @@ export function SystemAdminOrganizations() {
     updateOrganization,
     suspendOrganization,
     deleteOrganization,
+    resendOrganizationInvite,
     getOrgStats,
   } = usePlanXStore()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editOrg, setEditOrg] = useState<Organization | null>(null)
   const [statsOrg, setStatsOrg] = useState<Organization | null>(null)
+  const [orgStats, setOrgStats] = useState<{ users: number; projects: number; tasks: number } | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState('')
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ name: '', slug: '', plan: 'free' as Organization['plan'], adminEmail: '' })
 
   useEffect(() => {
     void loadOrganizations()
   }, [loadOrganizations])
+
+  useEffect(() => {
+    if (!statsOrg) {
+      setOrgStats(null)
+      setStatsError('')
+      setStatsLoading(false)
+      return
+    }
+
+    if (!USE_ORG_API) {
+      setOrgStats(getOrgStats(statsOrg.id))
+      setStatsError('')
+      setStatsLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setStatsLoading(true)
+    setStatsError('')
+    setOrgStats(null)
+
+    organizationApi
+      .stats(statsOrg.id)
+      .then((stats) => {
+        if (!cancelled) setOrgStats(stats)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setStatsError(err instanceof Error ? err.message : 'Failed to load organization stats.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [statsOrg, getOrgStats])
 
   const openCreate = () => {
     setForm({ name: '', slug: '', plan: 'free', adminEmail: '' })
@@ -79,6 +126,17 @@ export function SystemAdminOrganizations() {
       await deleteOrganization(id)
     } catch (err) {
       setToast(err instanceof Error ? err.message : 'Failed to delete organization.')
+    }
+  }
+
+  const handleResendInvite = async (id: string) => {
+    setResendingInviteId(id)
+    try {
+      await resendOrganizationInvite(id)
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Failed to resend invite.')
+    } finally {
+      setResendingInviteId(null)
     }
   }
 
@@ -136,6 +194,14 @@ export function SystemAdminOrganizations() {
                         }}
                       >
                         Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={!USE_ORG_API || !org.adminEmail || resendingInviteId === org.id}
+                        onClick={() => void handleResendInvite(org.id)}
+                      >
+                        {resendingInviteId === org.id ? 'Sending…' : 'Resend invite'}
                       </Button>
                       {org.status === 'active' && (
                         <Button variant="ghost" size="sm" onClick={() => void handleSuspend(org.id)}>
@@ -202,11 +268,31 @@ export function SystemAdminOrganizations() {
 
       <Modal open={!!statsOrg} onClose={() => setStatsOrg(null)} title={statsOrg ? `${statsOrg.name} — Stats` : ''}>
         {statsOrg && (
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between"><dt className="text-[var(--color-text-muted)]">Users</dt><dd className="font-medium">{getOrgStats(statsOrg.id).users}</dd></div>
-            <div className="flex justify-between"><dt className="text-[var(--color-text-muted)]">Projects</dt><dd className="font-medium">{getOrgStats(statsOrg.id).projects}</dd></div>
-            <div className="flex justify-between"><dt className="text-[var(--color-text-muted)]">Tasks</dt><dd className="font-medium">{getOrgStats(statsOrg.id).tasks}</dd></div>
-          </dl>
+          <>
+            {statsLoading && (
+              <p className="text-sm text-[var(--color-text-muted)]">Loading stats…</p>
+            )}
+            {statsError && (
+              <p className="text-sm text-red-600">{statsError}</p>
+            )}
+            {orgStats && !statsLoading && (
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between"><dt className="text-[var(--color-text-muted)]">Users</dt><dd className="font-medium">{orgStats.users}</dd></div>
+                <div className="flex justify-between"><dt className="text-[var(--color-text-muted)]">Projects</dt><dd className="font-medium">{orgStats.projects}</dd></div>
+                <div className="flex justify-between"><dt className="text-[var(--color-text-muted)]">Tasks</dt><dd className="font-medium">{orgStats.tasks}</dd></div>
+              </dl>
+            )}
+            {USE_ORG_API && orgStats && !statsLoading && orgStats.tasks === 0 && (
+              <p className="mt-3 text-xs text-[var(--color-text-muted)]">
+                Task count stays at 0 until tasks are stored in the backend.
+              </p>
+            )}
+            {!USE_ORG_API && !statsLoading && orgStats && (
+              <p className="mt-3 text-xs text-[var(--color-text-muted)]">
+                Stats from local demo data. Enable VITE_USE_ORG_API for backend counters.
+              </p>
+            )}
+          </>
         )}
       </Modal>
     </div>
