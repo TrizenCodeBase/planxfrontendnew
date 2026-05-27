@@ -17,6 +17,7 @@ import type { Organization, Project, Task, Sprint, Epic, Collaborator, TaskComme
 import type { PlatformUser, PaymentRecord, AuditLog, PlatformSession, InviteRecord } from '@/types/platform'
 import type { UserRole } from '@/types/auth'
 import { organizationApi } from '@/services/organizationApi'
+import { auditLogApi } from '@/services/auditLogApi'
 
 const STORAGE_KEY = 'planx_store_v3'
 const USE_ORG_API = import.meta.env.VITE_USE_ORG_API !== 'false'
@@ -104,7 +105,9 @@ interface PlanXStoreValue extends StoreState {
   addAuditLog: (action: string, actor: string, target: string) => void
   // Organizations
   organizationsLoading: boolean
+  auditLogsLoading: boolean
   loadOrganizations: () => Promise<void>
+  loadAuditLogs: () => Promise<void>
   createOrganization: (data: {
     name: string
     slug: string
@@ -114,6 +117,7 @@ interface PlanXStoreValue extends StoreState {
   updateOrganization: (id: string, data: Partial<Organization>) => Promise<void>
   suspendOrganization: (id: string) => Promise<void>
   deleteOrganization: (id: string) => Promise<void>
+  resendOrganizationInvite: (id: string) => Promise<void>
   getOrgStats: (id: string) => { users: number; projects: number; tasks: number }
   // Platform users
   createPlatformUser: (data: { name: string; email: string; role: UserRole; organizationId?: string }) => PlatformUser
@@ -158,6 +162,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StoreState>(getInitialState)
   const [toast, setToast] = useState('')
   const [organizationsLoading, setOrganizationsLoading] = useState(false)
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false)
 
   const persist = useCallback((next: StoreState | ((prev: StoreState) => StoreState)) => {
     setState((prev) => {
@@ -201,6 +206,20 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
     }
   }, [persist, showToast])
 
+  const loadAuditLogs = useCallback(async () => {
+    if (!USE_ORG_API) return
+    setAuditLogsLoading(true)
+    try {
+      const logs = await auditLogApi.list()
+      persist((prev) => ({ ...prev, auditLogs: logs }))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load audit logs from API.'
+      showToast(msg.includes('backend') ? msg : `${msg} Is planx-backend running on port 4000?`)
+    } finally {
+      setAuditLogsLoading(false)
+    }
+  }, [persist, showToast])
+
   const createOrganization = useCallback(
     async (data: {
       name: string
@@ -228,7 +247,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
           organizations: [org, ...prev.organizations.filter((o) => o.id !== org.id)],
           invites: [...prev.invites, invite],
         }))
-        addAuditLog('Organization created', 'System Administrator', org.name)
+        void loadAuditLogs()
         showToast(
           `Organization "${org.name}" created. Invite sent to ${data.adminEmail} from support@trizenhr.com.`
         )
@@ -264,7 +283,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
       showToast(`Organization "${org.name}" created. Admin invite sent to ${data.adminEmail}.`)
       return org
     },
-    [state, persist, addAuditLog, showToast]
+    [state, persist, addAuditLog, showToast, loadAuditLogs]
   )
 
   const updateOrganization = useCallback(
@@ -279,7 +298,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
           ...prev,
           organizations: prev.organizations.map((o) => (o.id === id ? org : o)),
         }))
-        addAuditLog('Organization updated', 'System Administrator', org.name)
+        void loadAuditLogs()
         showToast('Organization updated.')
         return
       }
@@ -290,7 +309,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
       addAuditLog('Organization updated', 'System Administrator', id)
       showToast('Organization updated.')
     },
-    [state, persist, addAuditLog, showToast]
+    [state, persist, addAuditLog, showToast, loadAuditLogs]
   )
 
   const suspendOrganization = useCallback(
@@ -301,7 +320,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
           ...prev,
           organizations: prev.organizations.map((o) => (o.id === id ? org : o)),
         }))
-        addAuditLog('Organization suspended', 'System Administrator', org.name)
+        void loadAuditLogs()
         showToast('Organization suspended.')
         return
       }
@@ -314,7 +333,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
       addAuditLog('Organization suspended', 'System Administrator', id)
       showToast('Organization suspended.')
     },
-    [state, persist, addAuditLog, showToast]
+    [state, persist, addAuditLog, showToast, loadAuditLogs]
   )
 
   const deleteOrganization = useCallback(
@@ -326,7 +345,7 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
           organizations: prev.organizations.filter((o) => o.id !== id),
           projects: prev.projects.filter((p) => p.organizationId !== id),
         }))
-        addAuditLog('Organization deleted', 'System Administrator', id)
+        void loadAuditLogs()
         showToast('Organization deleted.')
         return
       }
@@ -338,7 +357,24 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
       addAuditLog('Organization deleted', 'System Administrator', id)
       showToast('Organization deleted.')
     },
-    [state, persist, addAuditLog, showToast]
+    [state, persist, addAuditLog, showToast, loadAuditLogs]
+  )
+
+  const resendOrganizationInvite = useCallback(
+    async (id: string) => {
+      if (!USE_ORG_API) {
+        showToast('Resend invite requires the organization API.')
+        return
+      }
+      const org = await organizationApi.resendInvite(id)
+      persist((prev) => ({
+        ...prev,
+        organizations: prev.organizations.map((o) => (o.id === id ? org : o)),
+      }))
+      void loadAuditLogs()
+      showToast(`Invite resent to ${org.adminEmail ?? 'organization admin'}.`)
+    },
+    [persist, showToast, loadAuditLogs]
   )
 
   const getOrgStats = useCallback(
@@ -667,11 +703,14 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
       setToast,
       addAuditLog,
       organizationsLoading,
+      auditLogsLoading,
       loadOrganizations,
+      loadAuditLogs,
       createOrganization,
       updateOrganization,
       suspendOrganization,
       deleteOrganization,
+      resendOrganizationInvite,
       getOrgStats,
       createPlatformUser,
       updatePlatformUser,
@@ -705,11 +744,14 @@ export function PlanXStoreProvider({ children }: { children: ReactNode }) {
       toast,
       addAuditLog,
       organizationsLoading,
+      auditLogsLoading,
       loadOrganizations,
+      loadAuditLogs,
       createOrganization,
       updateOrganization,
       suspendOrganization,
       deleteOrganization,
+      resendOrganizationInvite,
       getOrgStats,
       createPlatformUser,
       updatePlatformUser,

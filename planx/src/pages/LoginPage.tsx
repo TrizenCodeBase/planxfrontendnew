@@ -20,20 +20,23 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   if (user) {
     return <Navigate to={ROLE_HOME[user.role]} replace />
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    const authenticated = login(email, password)
+    setSubmitting(true)
+    const authenticated = await login(email, password)
     if (authenticated) {
       navigate(ROLE_HOME[authenticated.role])
     } else {
       setError('Invalid email or password.')
     }
+    setSubmitting(false)
   }
 
   const fillDemo = (demoEmail: string, demoPassword: string) => {
@@ -58,7 +61,7 @@ export function LoginPage() {
         </div>
 
         <Card>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <Input
               label="Email"
               id="email"
@@ -78,8 +81,8 @@ export function LoginPage() {
               required
             />
             {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
-            <Button type="submit" className="w-full">
-              Sign in
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
         </Card>
