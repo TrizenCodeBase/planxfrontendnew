@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -6,7 +7,12 @@ import { ToastBanner } from '@/components/ui/Toast'
 import { usePlanXStore } from '@/store/PlanXStore'
 
 export function SystemAdminSecurity() {
-  const { auditLogs, sessions, toast, setToast, revokeSession } = usePlanXStore()
+  const { auditLogs, auditLogsLoading, loadAuditLogs, sessions, toast, setToast, revokeSession } =
+    usePlanXStore()
+
+  useEffect(() => {
+    void loadAuditLogs()
+  }, [loadAuditLogs])
 
   return (
     <div>
@@ -14,7 +20,12 @@ export function SystemAdminSecurity() {
       <ToastBanner message={toast} onDismiss={() => setToast('')} />
 
       <Card title="Audit logs" className="mb-4">
-        <Table>
+        {auditLogsLoading ? (
+          <p className="p-4 text-sm text-[var(--color-text-muted)]">Loading audit logs…</p>
+        ) : auditLogs.length === 0 ? (
+          <p className="p-4 text-sm text-[var(--color-text-muted)]">No audit logs yet.</p>
+        ) : (
+          <Table>
           <TableHead>
             <TableHeaderCell>Timestamp</TableHeaderCell>
             <TableHeaderCell>Action</TableHeaderCell>
@@ -36,6 +47,7 @@ export function SystemAdminSecurity() {
             ))}
           </TableBody>
         </Table>
+        )}
       </Card>
 
       <Card title="Session management">

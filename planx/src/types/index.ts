@@ -46,6 +46,9 @@ export interface Organization {
   projectCount: number
   createdAt: string
   status: 'active' | 'suspended'
+  adminEmail?: string
+  inviteStatus?: 'sent' | 'pending' | 'failed'
+  inviteSentAt?: string
 }
 
 export interface Sprint {
